@@ -236,7 +236,7 @@ $('#zipAll').onclick = () => {
 async function callAI(c){
   const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .9));
   let key = ''; try{ key = localStorage.getItem('pk') || prompt('접속 암호를 입력하세요') || ''; localStorage.setItem('pk', key); }catch(e){}
-  const res = await fetch(AI_ENDPOINT, {method:'POST', headers:{'Content-Type':'image/jpeg','x-passcode':key}, body:blob});
+  const res = await fetch(AI_ENDPOINT, {method:'POST', headers:{'Content-Type':'image/jpeg','x-passcode':encodeURIComponent(key)}, body:blob});
   if(res.status === 401){ try{ localStorage.removeItem('pk'); }catch(e){} throw new Error('암호 오류'); }
   if(!res.ok) throw new Error('AI 서버 ' + res.status + ': ' + (await res.text()).slice(0,200));
   const bmp = await createImageBitmap(await res.blob()), o = document.createElement('canvas');
