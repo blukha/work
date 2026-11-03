@@ -39,8 +39,14 @@ input[type=number]{font:inherit;padding:4px 6px;border:1px solid var(--bd);borde
 .pg{width:min(100%,300px);height:auto;border:1px solid var(--bd);border-radius:4px;background:#fff}
 dialog{border:1px solid var(--bd);border-radius:14px;background:var(--card);color:var(--tx);padding:14px;max-width:96vw}
 dialog::backdrop{background:rgba(0,0,0,.55)}
-#cv{touch-action:none;cursor:crosshair;display:block;margin:0 auto;max-width:100%}
+#cv,#zc{touch-action:none;cursor:crosshair;display:block;margin:0 auto;max-width:100%}
 .hint{font-size:13px;color:var(--mut);margin:8px 0}
+.pay,.free{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11.5px;font-weight:600;line-height:1.5;vertical-align:middle}
+.pay{background:rgba(245,158,11,.2);color:#b45309}
+.pay::before{content:"";width:13px;height:13px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11' fill='%23f59e0b'/%3E%3Ccircle cx='12' cy='12' r='8' fill='none' stroke='%23fff' stroke-width='1.4'/%3E%3Ctext x='12' y='16.5' font-size='12' font-weight='700' text-anchor='middle' fill='%23fff' font-family='Arial'%3E$%3C/text%3E%3C/svg%3E") center/contain no-repeat}
+.pay[hidden]{display:none}
+.free{background:rgba(22,163,74,.16);color:#15803d}
+@media (prefers-color-scheme:dark){.pay{color:#fbbf24}.free{color:#4ade80}}
 .note{font-size:12.5px;color:var(--mut);padding:10px 12px;border-radius:10px;background:var(--bg);margin-top:12px}
 @page{size:A4;margin:0}
 @media print{.noprint{display:none!important}body{background:#fff}main{padding:0;max-width:none}.card{border:0;padding:0;margin:0;background:none}.pages{display:block;margin:0}.pg{display:block;width:210mm;height:297mm;border:0;border-radius:0;break-after:page}}
@@ -57,6 +63,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     <label><input type="checkbox" id="optColor" checked> 색 펜 필기 제거</label>
     <label>색 민감도 <input type="range" id="optSat" min="25" max="90" value="45"></label>
     <label>뒷면 비침·연필 제거 강도 <input type="range" id="optT" min="120" max="230" value="185"></label>
+    <label title="클수록 인쇄 글자는 안전하지만 글자 근처 필기가 더 남을 수 있어요">인쇄 글자 보호 범위 <input type="range" id="optP" min="0.5" max="4" step="0.5" value="1"></label>
   </div>
 </section>
 
@@ -64,8 +71,9 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
   <input id="file" type="file" accept="image/*" multiple hidden></label>
 
 <div class="bar noprint">
-  <button id="runNew" class="p">일괄 처리</button>
-  <button id="runAll">전체 다시 처리</button>
+  <button id="runNew" class="p">일괄 처리<span class="pay" id="payNew" hidden></span></button>
+  <button id="runAll">전체 다시 처리<span class="pay" id="payAll" hidden></span></button>
+  <button id="reMix" title="AI를 다시 부르지 않고 보호 설정만 다시 적용">보호 범위 다시 적용<span class="free">무료</span></button>
   <button id="zipAll">결과 JPG 저장 (ZIP)</button>
   <button id="clr">모두 비우기</button>
   <span id="cnt">0장</span><span id="prog"></span>
@@ -97,14 +105,25 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
   <div class="row"><button id="cFull">전체 선택</button><button id="cCancel">취소</button><button id="cOk" class="p">적용</button></div>
 </dialog>
 
+<dialog id="zdlg">
+  <div class="row" style="margin-bottom:8px"><button id="zk" class="p">🛡 글자 보호(원본 유지)</button><button id="ze">🧽 필기 더 지우기</button></div>
+  <canvas id="zc"></canvas>
+  <p class="hint">결과 이미지에서 영역을 끌어 그립니다. 초록 = 글자가 깎인 곳(원본 그대로 유지), 주황 = 필기가 남은 곳(보호 해제).</p>
+  <div class="row"><button id="zUndo">마지막 취소</button><button id="zClr">전체 삭제</button><button id="zCancel">닫기</button><button id="zOk" class="p">적용<span class="free">무료 · AI 재호출 없음</span></button></div>
+</dialog>
+
 <script>
-const AI_ENDPOINT = '/api/erase';   // ★ AI 서버 연결 지점 (PNG POST → 필기 제거된 이미지 응답)
+const AI_ENDPOINT = '/api/erase';
+// 금액 표시용 설정: 사용하는 Gemini 모델의 장당 가격과 환율에 맞게 수정하세요.
+const COST_PER_IMAGE = 0.04;   // 장당 예상 요금 (USD)
+const KRW_PER_USD = 1400;      // 원화 환산 환율(대략값)
+const money = n => { const u = n*COST_PER_IMAGE; return `≈$${u.toFixed(2)} (약 ${Math.round(u*KRW_PER_USD).toLocaleString()}원)`; };   // ★ AI 서버 연결 지점 (PNG POST → 필기 제거된 이미지 응답)
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = s => document.querySelector(s), sleep = ms => new Promise(r => setTimeout(r, ms));
 const loadImg = u => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = u; });
 let items = [], uid = 0, cur = null, scale = 1, crop = {x:0,y:0,w:0,h:0}, drag = null, busy = false, pageBlobs = [];
 const cv = $('#cv'), cx = cv.getContext('2d');
-const opts = () => ({color:$('#optColor').checked, sat:+$('#optSat').value, T:+$('#optT').value});
+const opts = () => ({color:$('#optColor').checked, sat:+$('#optSat').value, T:+$('#optT').value, prot:+$('#optP').value});
 
 // ---------- 저장 (미리보기에서는 downloads 기능, 직접 호스팅 시 일반 다운로드) ----------
 async function save(data, filename){
@@ -142,15 +161,22 @@ function render(){
     <div class="nm" title="${it.name}">${it.name}</div>
     ${it.err ? `<div style="font-size:12px;color:#dc2626;word-break:break-all">${esc(it.err)}</div>` : ''}
     <label class="r">가로 <input type="number" step="0.5" min="2" data-w value="${it.wcm ?? ''}" placeholder="기본" style="width:62px"> cm</label>
-    <div class="r"><button data-a="crop">✂ 자르기</button><button data-a="redo">↻ 처리</button></div>
+    <div class="r"><button data-a="crop">✂ 자르기</button><button data-a="redo">↻ 처리${AI_ENDPOINT ? `<span class="pay">$${COST_PER_IMAGE.toFixed(2)}</span>` : ''}</button><button data-a="zone" ${it.aiBlob ? '' : 'disabled'}>🛡 보호${it.zones && it.zones.length ? ' ' + it.zones.length : ''}</button></div>
     <div class="r"><button data-a="dl" ${it.blob?'':'disabled'}>JPG</button><button data-a="l">◀</button><button data-a="rr">▶</button><button data-a="del">✕</button></div></div>`).join('');
-  $('#cnt').textContent = items.length + '장'; scheduleBuild();
+  $('#cnt').textContent = items.length + '장'; scheduleBuild(); updatePay();
+}
+function updatePay(){
+  const on = !!AI_ENDPOINT;
+  [['#payNew', items.filter(i => i.status !== '완료').length], ['#payAll', items.length]].forEach(([id, n]) => {
+    const e = $(id); e.hidden = !on || !n; e.textContent = `${n}장 ${money(n)}`;
+  });
 }
 $('#grid').addEventListener('click', async e => {
   const b = e.target.closest('[data-a]'); if(!b) return;
   const id = +b.closest('.it').dataset.id, i = items.findIndex(x => x.id === id), it = items[i], a = b.dataset.a;
   if(a === 'tog'){ it.orig = !it.orig; render(); }
   else if(a === 'crop') openCrop(it);
+  else if(a === 'zone') openZone(it);
   else if(a === 'redo'){ if(busy) return; busy = true; await proc(it); busy = false; scheduleBuild(); }
   else if(a === 'dl') save(it.blob, it.name + '_clean.jpg');
   else if(a === 'del'){ items.splice(i,1); render(); }
@@ -202,33 +228,78 @@ $('#cCancel').onclick = () => $('#dlg').close();
 $('#cOk').onclick = () => {
   cur.crop = {x:crop.x/cv.width, y:crop.y/cv.height, w:crop.w/cv.width, h:crop.h/cv.height};
   if(cur.blob) cur.status = '재처리 필요';
+  cur.aiBlob = null; cur.zones = [];
   $('#dlg').close(); render();
 };
 
+// ---------- 보호 영역 선택 ----------
+let zit = null, zs = [], zmode = 'k', zi = null, zd = null;
+const zc = $('#zc'), zx = zc.getContext('2d');
+async function openZone(it){
+  zit = it; zs = (it.zones || []).map(z => ({...z})); zi = await loadImg(it.rurl);
+  const k = Math.min((Math.min(innerWidth, 1000) - 70) / zi.naturalWidth, innerHeight * .6 / zi.naturalHeight, 1);
+  zc.width = Math.round(zi.naturalWidth*k); zc.height = Math.round(zi.naturalHeight*k);
+  $('#zdlg').showModal(); zdraw();
+}
+function zdraw(){
+  zx.drawImage(zi, 0, 0, zc.width, zc.height);
+  [...zs, ...(zd ? [zd] : [])].forEach(z => {
+    const c = z.m === 'k' ? '22,163,74' : '249,115,22';
+    zx.fillStyle = `rgba(${c},.25)`; zx.strokeStyle = `rgb(${c})`; zx.lineWidth = 2;
+    zx.fillRect(z.x*zc.width, z.y*zc.height, z.w*zc.width, z.h*zc.height);
+    zx.strokeRect(z.x*zc.width, z.y*zc.height, z.w*zc.width, z.h*zc.height);
+  });
+}
+function zpos(e){ const r = zc.getBoundingClientRect(); return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)), y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}; }
+zc.addEventListener('pointerdown', e => { zc.setPointerCapture(e.pointerId); const p = zpos(e); zd = {sx:p.x, sy:p.y, x:p.x, y:p.y, w:0, h:0, m:zmode}; });
+zc.addEventListener('pointermove', e => {
+  if(!zd) return; const p = zpos(e);
+  zd.x = Math.min(p.x, zd.sx); zd.y = Math.min(p.y, zd.sy); zd.w = Math.abs(p.x-zd.sx); zd.h = Math.abs(p.y-zd.sy); zdraw();
+});
+['pointerup','pointercancel'].forEach(t => zc.addEventListener(t, () => {
+  if(zd && zd.w*zc.width > 8 && zd.h*zc.height > 8) zs.push({x:zd.x, y:zd.y, w:zd.w, h:zd.h, m:zd.m});
+  zd = null; if(zi) zdraw();
+}));
+function zsetMode(m){ zmode = m; $('#zk').classList.toggle('p', m === 'k'); $('#ze').classList.toggle('p', m === 'e'); }
+$('#zk').onclick = () => zsetMode('k'); $('#ze').onclick = () => zsetMode('e');
+$('#zUndo').onclick = () => { zs.pop(); zdraw(); };
+$('#zClr').onclick = () => { zs = []; zdraw(); };
+$('#zCancel').onclick = () => $('#zdlg').close();
+$('#zOk').onclick = async () => {
+  zit.zones = zs; $('#zdlg').close(); render();
+  if(!busy){ busy = true; await proc(zit, true); busy = false; }
+};
+
 // ---------- 일괄 처리 ----------
-async function proc(it){
+async function proc(it, reuse){
   it.status = '처리 중…'; render(); await sleep(30);
   try{
     const im = it.img, W = im.naturalWidth, H = im.naturalHeight, c = it.crop;
     const sw = Math.max(8, c.w*W), sh = Math.max(8, c.h*H), k = Math.min(1, 1800/Math.max(sw,sh));
     const cn = document.createElement('canvas'); cn.width = Math.round(sw*k); cn.height = Math.round(sh*k);
     cn.getContext('2d').drawImage(im, c.x*W, c.y*H, sw, sh, 0, 0, cn.width, cn.height);
-    const base = AI_ENDPOINT ? await callAI(cn) : cn, out = clean(base, opts());
+    let src = cn, warn = '';
+    if(AI_ENDPOINT){
+      if(!(reuse && it.aiBlob)) it.aiBlob = await callAI(cn);
+      const h = hybrid(cn, await blobToCanvas(it.aiBlob), opts(), it.zones || []); src = h.out; warn = h.warn || '';
+    }
+    const out = clean(src, opts());
     const blob = await new Promise(r => out.toBlob(r, 'image/jpeg', .92));
     if(it.rurl) URL.revokeObjectURL(it.rurl);
-    Object.assign(it, {blob, rurl:URL.createObjectURL(blob), rimg:null, rw:out.width, rh:out.height, status:'완료', orig:false, err:''});
+    Object.assign(it, {blob, rurl:URL.createObjectURL(blob), rimg:null, rw:out.width, rh:out.height, status:'완료', orig:false, err:warn});
   }catch(e){ it.status = '오류'; it.err = String(e.message || e).slice(0,240); }
   render();
 }
-async function runAll(force){
+async function runAll(force, reuse){
   if(busy) return;
   const todo = items.filter(i => force || i.status !== '완료'); if(!todo.length) return;
   busy = true;
-  for(let k = 0; k < todo.length; k++){ $('#prog').textContent = `${k+1} / ${todo.length} 처리 중…`; await proc(todo[k]); }
+  for(let k = 0; k < todo.length; k++){ $('#prog').textContent = `${k+1} / ${todo.length} 처리 중…`; await proc(todo[k], reuse); }
   busy = false; $('#prog').textContent = '처리 완료'; scheduleBuild();
 }
 $('#runNew').onclick = () => runAll(false);
 $('#runAll').onclick = () => runAll(true);
+$('#reMix').onclick = () => runAll(true, true);
 $('#zipAll').onclick = () => {
   const f = items.filter(i => i.blob).map((it,k) => ({name:`${String(k+1).padStart(2,'0')}_${it.name}_clean.jpg`, blob:it.blob}));
   f.length ? saveZip(f, 'cleaned_jpg.zip') : alert('먼저 일괄 처리를 해 주세요.');
@@ -239,7 +310,10 @@ async function callAI(c){
   const res = await fetch(AI_ENDPOINT, {method:'POST', headers:{'Content-Type':'image/jpeg','x-passcode':encodeURIComponent(key)}, body:blob});
   if(res.status === 401){ try{ localStorage.removeItem('pk'); }catch(e){} throw new Error('암호 오류'); }
   if(!res.ok) throw new Error('AI 서버 ' + res.status + ': ' + (await res.text()).slice(0,200));
-  const bmp = await createImageBitmap(await res.blob()), o = document.createElement('canvas');
+  return await res.blob();
+}
+async function blobToCanvas(b){
+  const bmp = await createImageBitmap(b), o = document.createElement('canvas');
   o.width = bmp.width; o.height = bmp.height; o.getContext('2d').drawImage(bmp, 0, 0); return o;
 }
 function maxf(a,w,h,r){
@@ -253,6 +327,40 @@ function boxf(a,w,h,r){
   for(let y=0;y<h;y++) for(let x=0;x<w;x++){ let s=0,n=0; for(let i=Math.max(0,x-r);i<=Math.min(w-1,x+r);i++){s+=a[y*w+i];n++;} t[y*w+x]=s/n; }
   for(let y=0;y<h;y++) for(let x=0;x<w;x++){ let s=0,n=0; for(let j=Math.max(0,y-r);j<=Math.min(h-1,y+r);j++){s+=t[j*w+x];n++;} o[y*w+x]=s/n; }
   return o;
+}
+// 배경 보정 밝기(종이≈255)와 종이 밝기 지도
+function flat(src){
+  const W = src.width, H = src.height, n = W*H, p = src.getContext('2d').getImageData(0,0,W,H).data;
+  const g = new Float32Array(n);
+  for(let i=0,j=0;i<n;i++,j+=4) g[i] = .299*p[j] + .587*p[j+1] + .114*p[j+2];
+  const s = 8, bw = Math.ceil(W/s), bh = Math.ceil(H/s); let bg = new Float32Array(bw*bh);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const b=((y/s)|0)*bw+((x/s)|0); if(g[y*W+x]>bg[b]) bg[b]=g[y*W+x]; }
+  bg = boxf(boxf(maxf(bg,bw,bh,2),bw,bh,3),bw,bh,3);
+  const v = new Float32Array(n);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const i=y*W+x; v[i] = Math.min(255, g[i]/Math.max(bg[((y/s)|0)*bw+((x/s)|0)],40)*255); }
+  return {v, bg, bw, s};
+}
+// 인쇄 글자 보호: AI 결과에서 "글자가 남아 있는 자리(주변 포함)"는 원본 그대로 두고,
+// 원본에는 있지만 AI 결과에서 사라진 자국(=필기)만 종이색으로 지운다.
+function hybrid(orig, ai, o, zones){
+  const W = orig.width, H = orig.height, n = W*H;
+  if(Math.abs(ai.width/ai.height - W/H)/(W/H) > .03) return {out:ai, warn:'AI 결과 비율이 달라 원본 보호를 하지 못했어요(AI 결과 그대로 사용)'};
+  const a = document.createElement('canvas'); a.width = W; a.height = H; a.getContext('2d').drawImage(ai,0,0,W,H);
+  const fo = flat(orig), fa = flat(a), r = Math.max(2, Math.round(W/300*o.prot));
+  const dk = new Float32Array(n); for(let i=0;i<n;i++) dk[i] = fa.v[i] < 215 ? 1 : 0;
+  const pr = maxf(dk,W,H,r), pe = zones.some(z => z.m === 'e') ? maxf(dk,W,H,1) : null, zm = new Uint8Array(n);
+  zones.forEach(z => {   // 선택 영역: k=원본 유지, e=보호 해제
+    const x0 = Math.max(0, Math.floor(z.x*W)), x1 = Math.min(W, Math.ceil((z.x+z.w)*W)), y0 = Math.max(0, Math.floor(z.y*H)), y1 = Math.min(H, Math.ceil((z.y+z.h)*H));
+    for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) zm[y*W+x] = z.m === 'k' ? 1 : 2;
+  });
+  const d = orig.getContext('2d').getImageData(0,0,W,H), p = d.data; let ink = 0, gone = 0;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i = y*W+x;
+    if(fo.v[i] < 225){ ink++; const pv = zm[i] === 1 ? 1 : zm[i] === 2 ? pe[i] : pr[i]; if(!pv){ gone++; const f = fo.bg[((y/fo.s)|0)*fo.bw+((x/fo.s)|0)], j = i*4; p[j]=p[j+1]=p[j+2]=f; } }
+  }
+  if(ink && gone/ink > .75) return {out:ai, warn:'위치가 맞지 않아 AI 결과를 그대로 사용했어요'};
+  const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').putImageData(d,0,0);
+  return {out:c};
 }
 // 배경 보정 → 색 필기 마스크 제거 → 소프트 임계값(뒷면 비침 제거)
 function clean(src, o){
