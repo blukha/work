@@ -99,6 +99,7 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 
 <script>
 const AI_ENDPOINT = '/api/erase';   // ★ AI 서버 연결 지점 (PNG POST → 필기 제거된 이미지 응답)
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = s => document.querySelector(s), sleep = ms => new Promise(r => setTimeout(r, ms));
 const loadImg = u => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = u; });
 let items = [], uid = 0, cur = null, scale = 1, crop = {x:0,y:0,w:0,h:0}, drag = null, busy = false, pageBlobs = [];
@@ -139,6 +140,7 @@ function render(){
   $('#grid').innerHTML = items.map(it => `<div class="it" data-id="${it.id}">
     <div class="th" data-a="tog" title="클릭: 원본/결과 전환"><img src="${it.rurl && !it.orig ? it.rurl : it.url}"><span class="st ${it.status==='완료'?'ok':''}">${it.status}</span></div>
     <div class="nm" title="${it.name}">${it.name}</div>
+    ${it.err ? `<div style="font-size:12px;color:#dc2626;word-break:break-all">${esc(it.err)}</div>` : ''}
     <label class="r">가로 <input type="number" step="0.5" min="2" data-w value="${it.wcm ?? ''}" placeholder="기본" style="width:62px"> cm</label>
     <div class="r"><button data-a="crop">✂ 자르기</button><button data-a="redo">↻ 처리</button></div>
     <div class="r"><button data-a="dl" ${it.blob?'':'disabled'}>JPG</button><button data-a="l">◀</button><button data-a="rr">▶</button><button data-a="del">✕</button></div></div>`).join('');
@@ -214,8 +216,8 @@ async function proc(it){
     const base = AI_ENDPOINT ? await callAI(cn) : cn, out = clean(base, opts());
     const blob = await new Promise(r => out.toBlob(r, 'image/jpeg', .92));
     if(it.rurl) URL.revokeObjectURL(it.rurl);
-    Object.assign(it, {blob, rurl:URL.createObjectURL(blob), rimg:null, rw:out.width, rh:out.height, status:'완료', orig:false});
-  }catch(e){ it.status = '오류'; }
+    Object.assign(it, {blob, rurl:URL.createObjectURL(blob), rimg:null, rw:out.width, rh:out.height, status:'완료', orig:false, err:''});
+  }catch(e){ it.status = '오류'; it.err = String(e.message || e).slice(0,240); }
   render();
 }
 async function runAll(force){
@@ -236,7 +238,7 @@ async function callAI(c){
   let key = ''; try{ key = localStorage.getItem('pk') || prompt('접속 암호를 입력하세요') || ''; localStorage.setItem('pk', key); }catch(e){}
   const res = await fetch(AI_ENDPOINT, {method:'POST', headers:{'Content-Type':'image/jpeg','x-passcode':key}, body:blob});
   if(res.status === 401){ try{ localStorage.removeItem('pk'); }catch(e){} throw new Error('암호 오류'); }
-  if(!res.ok) throw new Error('AI 서버 오류');
+  if(!res.ok) throw new Error('AI 서버 ' + res.status + ': ' + (await res.text()).slice(0,200));
   const bmp = await createImageBitmap(await res.blob()), o = document.createElement('canvas');
   o.width = bmp.width; o.height = bmp.height; o.getContext('2d').drawImage(bmp, 0, 0); return o;
 }
