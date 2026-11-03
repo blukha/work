@@ -8,7 +8,9 @@ const PROMPT =
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('POST only');
-  if (process.env.APP_PASSCODE && req.headers['x-passcode'] !== process.env.APP_PASSCODE)
+  let sent = '';
+  try { sent = decodeURIComponent(req.headers['x-passcode'] || ''); } catch (e) {}
+  if (process.env.APP_PASSCODE && sent !== process.env.APP_PASSCODE)
     return res.status(401).send('unauthorized');
   if (!process.env.GEMINI_API_KEY) return res.status(500).send('GEMINI_API_KEY not set');
   try {
