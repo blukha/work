@@ -10,6 +10,7 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('POST only');
   if (process.env.APP_PASSCODE && req.headers['x-passcode'] !== process.env.APP_PASSCODE)
     return res.status(401).send('unauthorized');
+  if (!process.env.GEMINI_API_KEY) return res.status(500).send('GEMINI_API_KEY not set');
   try {
     const chunks = [];
     for await (const c of req) chunks.push(c);
@@ -37,7 +38,7 @@ module.exports = async (req, res) => {
         const d = p && (p.inlineData || p.inline_data);
         if (d && d.data) out = d; else lastErr = 'no image returned';
       } else {
-        lastErr = String(r.status);
+        lastErr = r.status + ' ' + (await r.text()).slice(0, 300);
         if (![429, 500, 503].includes(r.status)) break;
       }
       if (!out) await new Promise(s => setTimeout(s, 1500 * (t + 1)));
@@ -46,6 +47,6 @@ module.exports = async (req, res) => {
     res.setHeader('Content-Type', out.mimeType || out.mime_type || 'image/png');
     res.status(200).send(Buffer.from(out.data, 'base64'));
   } catch (e) {
-    res.status(500).send('server error');
+    res.status(500).send('server error: ' + (e && e.message));
   }
 };
