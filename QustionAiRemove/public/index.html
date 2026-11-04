@@ -75,17 +75,16 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
     <label>색 민감도 <input type="range" id="optSat" min="25" max="90" value="45"></label>
     <label>뒷면 비침·연필 제거 강도 <input type="range" id="optT" min="120" max="230" value="185"></label>
     <label title="클수록 인쇄 글자는 안전하지만 글자 근처 필기가 더 남을 수 있어요">인쇄 글자 보호 범위 <input type="range" id="optP" min="0.5" max="4" step="0.5" value="1"></label>
-    <button id="pvOpen">🔍 한 장으로 미리보기</button>
   </div>
   <div class="pvbox" id="pv" hidden>
-    <div class="row"><b>설정 미리보기</b>
-      <select id="pvSel" style="font:inherit;padding:5px 8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);max-width:220px"></select>
+    <div class="row"><b id="pvName">선택한 이미지</b>
       <label style="font-size:14px"><input type="checkbox" id="pvO"> 원본 보기</label>
       <button id="pvOne" class="p">이 이미지만 적용</button><button id="pvAll">전체 적용</button><button id="pvClose">닫기</button>
     </div>
-    <p class="hint">위의 슬라이더를 움직이면 이 이미지와 카드 썸네일이 바로 바뀝니다. 적용은 AI를 다시 부르지 않아 요금이 들지 않아요.</p>
+    <p class="hint">위의 슬라이더를 움직이면 선택한 이미지와 카드 썸네일이 바로 바뀝니다. 마음에 들면 적용하세요(AI를 다시 부르지 않아 요금 없음). 다른 이미지를 클릭하면 그 이미지의 설정을 따로 조절할 수 있어요.</p>
     <canvas id="pvc"></canvas>
   </div>
+  <p class="hint">이미지를 클릭하면 그 이미지를 선택해서 설정을 조절할 수 있어요.</p>
   <div class="grid" id="grid"></div>
 </section>
 
@@ -170,7 +169,7 @@ async function addFiles(fl){
 // ---------- ② 목록 ----------
 function render(){
   $('#grid').innerHTML = items.map(it => `<div class="it${pvIt && pvIt.id === it.id ? ' sel' : ''}" data-id="${it.id}">
-    <div class="th" data-a="tog" title="클릭: 원본/결과 전환"><img src="${it.rurl && !it.orig ? it.rurl : it.url}"><span class="st ${it.status==='완료'?'ok':''}">${it.status}</span></div>
+    <div class="th" data-a="tog" title="클릭: 이 이미지 선택"><img src="${it.rurl && !it.orig ? it.rurl : it.url}"><span class="st ${it.status==='완료'?'ok':''}">${it.status}</span></div>
     <div class="nm" title="${it.name}">${it.name}</div>
     ${it.err ? `<div style="font-size:12px;color:#dc2626;word-break:break-all">${esc(it.err)}</div>` : ''}
     <div class="r"><button data-a="crop">✂ 자르기</button><button data-a="edit" ${it.blob ? '' : 'disabled'}>🖌 수정</button></div>
@@ -185,7 +184,7 @@ function updatePay(){
 $('#grid').addEventListener('click', e => {
   const b = e.target.closest('[data-a]'); if(!b) return;
   const id = +b.closest('.it').dataset.id, i = items.findIndex(x => x.id === id), it = items[i], a = b.dataset.a;
-  if(a === 'tog'){ it.orig = !it.orig; render(); }
+  if(a === 'tog') pvSelect(it);
   else if(a === 'crop') openCrop(it);
   else if(a === 'edit') openEdit(it);
   else if(a === 'dl') save(it.blob, it.name + '_clean.jpg');
@@ -272,7 +271,7 @@ $('#eOk').onclick = async () => {
 };
 
 // ---------- 일괄 처리 ----------
-async function proc(it, reuse){
+async function proc(it, reuse, o = opts()){
   it.status = '처리 중…'; render(); await sleep(30);
   try{
     const im = it.img, W = im.naturalWidth, H = im.naturalHeight, c = it.crop;
@@ -282,12 +281,12 @@ async function proc(it, reuse){
     let src = cn, warn = '';
     if(AI_ENDPOINT){
       if(!(reuse && it.aiBlob)) it.aiBlob = await callAI(cn);
-      const h2 = hybrid(cn, await blobToCanvas(it.aiBlob), opts()); src = h2.out; warn = h2.warn || '';
+      const h2 = hybrid(cn, await blobToCanvas(it.aiBlob), o); src = h2.out; warn = h2.warn || '';
     }
-    const out = clean(src, opts());
+    const out = clean(src, o);
     const blob = await new Promise(r => out.toBlob(r, 'image/jpeg', .92));
     if(it.rurl) URL.revokeObjectURL(it.rurl);
-    Object.assign(it, {blob, rurl:URL.createObjectURL(blob), rimg:null, rw:out.width, rh:out.height, status:'완료', orig:false, edited:false, err:warn});
+    Object.assign(it, {blob, rurl:URL.createObjectURL(blob), rimg:null, rw:out.width, rh:out.height, status:'완료', orig:false, edited:false, set:{...o}, err:warn});
   }catch(e){ it.status = '오류'; it.err = String(e.message || e).slice(0,240); }
   render();
 }
@@ -295,7 +294,7 @@ $('#runNew').onclick = async () => {
   if(busy) return;
   const todo = items.filter(i => i.status !== '완료'); if(!todo.length) return;
   busy = true;
-  for(let k = 0; k < todo.length; k++){ $('#prog').textContent = `${k+1} / ${todo.length} 처리 중…`; await proc(todo[k]); }
+  for(let k = 0; k < todo.length; k++){ $('#prog').textContent = `${k+1} / ${todo.length} 처리 중…`; await proc(todo[k], false, todo[k].set || opts()); }
   busy = false; $('#prog').textContent = '처리 완료'; scheduleBuild();
 };
 async function callAI(c){
@@ -374,15 +373,17 @@ function clean(src, o){
 // ---------- 설정 미리보기 (한 장) ----------
 let pvIt = null, pvSmall = null, pvAi = null, pvRaf = 0;
 const pvc = $('#pvc');
-$('#pvOpen').onclick = async () => {
-  const done = items.filter(i => i.blob); if(!done.length) return alert('먼저 일괄 처리를 한 뒤에 사용할 수 있어요.');
-  $('#pvSel').innerHTML = done.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
-  $('#pv').hidden = false; await pvLoad(done[0].id);
-};
-$('#pvSel').onchange = e => pvLoad(+e.target.value);
+async function pvSelect(it){
+  if(!it.blob){ $('#prog').textContent = '일괄 처리를 한 뒤에 이미지를 선택해서 조절할 수 있어요'; return; }
+  const o = it.set;   // 이 이미지에 적용했던 값이 있으면 슬라이더에 불러옴
+  if(o){ $('#optColor').checked = o.color; $('#optSat').value = o.sat; $('#optT').value = o.T; $('#optP').value = o.prot; }
+  $('#pvO').checked = false; $('#pv').hidden = false;
+  await pvLoad(it.id);
+  $('#pv').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
 $('#pvClose').onclick = () => { $('#pv').hidden = true; pvIt = null; render(); };
 async function pvLoad(id){
-  pvIt = items.find(i => i.id === id); if(!pvIt) return; $('#pvSel').value = id;
+  pvIt = items.find(i => i.id === id); if(!pvIt) return; $('#pvName').textContent = '선택한 이미지: ' + pvIt.name;
   const im = pvIt.img, W = im.naturalWidth, H = im.naturalHeight, c = pvIt.crop;
   const sw = Math.max(8, c.w*W), sh = Math.max(8, c.h*H), k = Math.min(1, 700/Math.max(sw,sh));
   pvSmall = document.createElement('canvas'); pvSmall.width = Math.round(sw*k); pvSmall.height = Math.round(sh*k);
@@ -406,7 +407,7 @@ $('#pvOne').onclick = async () => {
   if(busy || !pvIt) return; const it = pvIt;
   if(AI_ENDPOINT && !it.aiBlob) return;
   if(it.edited && !confirm('이 이미지에서 직접 수정한 내용이 사라집니다. 계속할까요?')) return;
-  busy = true; $('#prog').textContent = '적용 중…'; await proc(it, true); busy = false;
+  busy = true; $('#prog').textContent = '적용 중…'; await proc(it, true, opts()); busy = false;
   $('#prog').textContent = '적용 완료'; scheduleBuild();
 };
 $('#pvAll').onclick = async () => {
@@ -415,8 +416,8 @@ $('#pvAll').onclick = async () => {
   const ed = todo.filter(i => i.edited);
   if(ed.length && !confirm(`직접 수정한 ${ed.length}장은 그대로 두고 나머지에 적용할까요?`)) return;
   todo = todo.filter(i => !i.edited); if(!todo.length) return;
-  busy = true;
-  for(let k = 0; k < todo.length; k++){ $('#prog').textContent = `${k+1} / ${todo.length} 적용 중…`; await proc(todo[k], true); }
+  const o = opts(); busy = true;
+  for(let k = 0; k < todo.length; k++){ $('#prog').textContent = `${k+1} / ${todo.length} 적용 중…`; await proc(todo[k], true, o); }
   busy = false; $('#prog').textContent = '적용 완료'; scheduleBuild();
 };
 
