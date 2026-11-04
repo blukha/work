@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>AI 필기 제거 · 일괄 처리</title>
+<title>AI 필기 제거</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{--bg:#f5f6f8;--card:#fff;--tx:#1b1f24;--mut:#6b7280;--ac:#2f6df6;--bd:#dfe3e9;--ok:#16a34a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -12,91 +12,87 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;line-height:1.5}
 main{max-width:1040px;margin:0 auto;padding:20px 16px 56px}
-h1{font-size:22px;margin:4px 0 2px}h2{font-size:16px;margin:0 0 10px}
+h1{font-size:22px;margin:4px 0 2px}h2{font-size:16px;margin:0 0 12px}
 .sub{color:var(--mut);margin:0 0 16px;font-size:14px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:14px}
-.drop{display:block;border:2px dashed var(--bd);border-radius:14px;padding:30px 16px;text-align:center;cursor:pointer;color:var(--mut);margin-bottom:14px;background:var(--card)}
+.drop{display:block;border:2px dashed var(--bd);border-radius:14px;padding:30px 16px;text-align:center;cursor:pointer;color:var(--mut)}
 .drop.hot{border-color:var(--ac);color:var(--ac)}.drop b{display:block;font-size:17px;color:var(--tx)}
-button{font:inherit;font-size:14px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 12px;border-radius:9px;cursor:pointer}
+button,label.btn{font:inherit;font-size:14px;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 12px;border-radius:9px;cursor:pointer}
 button.p{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
 button:disabled{opacity:.4;cursor:default}
-.row,.ctl{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.ctl{gap:18px;font-size:14px}.ctl input[type=range]{width:130px;vertical-align:middle}
-.ctl input[type=number]{width:70px}
-input[type=number]{font:inherit;padding:4px 6px;border:1px solid var(--bd);border-radius:7px;background:var(--bg);color:var(--tx)}
-.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
-#prog,#cnt,#aInfo{color:var(--mut);font-size:13px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+.row,.ctl,.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.ctl{gap:18px;font-size:14px;margin:14px 0}.ctl input[type=range]{width:130px;vertical-align:middle}
+input[type=number]{font:inherit;padding:4px 6px;border:1px solid var(--bd);border-radius:7px;background:var(--bg);color:var(--tx);width:70px}
+#prog,#cnt,#aInfo,#impInfo{color:var(--mut);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
 .it{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:7px}
 .th{position:relative;height:150px;background:#fff;border-radius:8px;overflow:hidden;cursor:pointer;border:1px solid var(--bd)}
 .th img{width:100%;height:100%;object-fit:contain;display:block}
 .st{position:absolute;left:6px;top:6px;font-size:11px;padding:2px 7px;border-radius:99px;background:rgba(0,0,0,.65);color:#fff}
-.st.ok{background:var(--ok);color:#fff}
+.st.ok{background:var(--ok)}
 .nm{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.it .r{display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--mut)}
-.it button{padding:5px 8px;font-size:12.5px}
+.it .r{display:flex;gap:6px;flex-wrap:wrap}.it button{padding:5px 9px;font-size:12.5px}
 .pages{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
 .pg{width:min(100%,300px);height:auto;border:1px solid var(--bd);border-radius:4px;background:#fff}
 dialog{border:1px solid var(--bd);border-radius:14px;background:var(--card);color:var(--tx);padding:14px;max-width:96vw}
 dialog::backdrop{background:rgba(0,0,0,.55)}
-#cv,#zc{touch-action:none;cursor:crosshair;display:block;margin:0 auto;max-width:100%}
+#cv,#ec{touch-action:none;cursor:crosshair;display:block;margin:0 auto;max-width:100%;max-height:70vh}
+#ec{background:#fff;object-fit:contain}
 .hint{font-size:13px;color:var(--mut);margin:8px 0}
-.pay,.free{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11.5px;font-weight:600;line-height:1.5;vertical-align:middle}
-.pay{background:rgba(245,158,11,.2);color:#b45309}
+.pay{display:inline-flex;align-items:center;gap:4px;margin-left:6px;padding:1px 7px;border-radius:99px;font-size:11.5px;font-weight:600;line-height:1.5;vertical-align:middle;background:rgba(245,158,11,.2);color:#b45309}
 .pay::before{content:"";width:13px;height:13px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11' fill='%23f59e0b'/%3E%3Ccircle cx='12' cy='12' r='8' fill='none' stroke='%23fff' stroke-width='1.4'/%3E%3Ctext x='12' y='16.5' font-size='12' font-weight='700' text-anchor='middle' fill='%23fff' font-family='Arial'%3E$%3C/text%3E%3C/svg%3E") center/contain no-repeat}
 .pay[hidden]{display:none}
-.free{background:rgba(22,163,74,.16);color:#15803d}
-@media (prefers-color-scheme:dark){.pay{color:#fbbf24}.free{color:#4ade80}}
-.note{font-size:12.5px;color:var(--mut);padding:10px 12px;border-radius:10px;background:var(--bg);margin-top:12px}
+@media (prefers-color-scheme:dark){.pay{color:#fbbf24}}
 @page{size:A4;margin:0}
 @media print{.noprint{display:none!important}body{background:#fff}main{padding:0;max-width:none}.card{border:0;padding:0;margin:0;background:none}.pages{display:block;margin:0}.pg{display:block;width:210mm;height:297mm;border:0;border-radius:0;break-after:page}}
 </style>
 </head>
 <body>
 <main>
-<h1 class="noprint">✏️ AI 필기 제거 · 일괄 처리</h1>
-<p class="sub noprint">여러 장을 올려 장별로 자르고, 한 번에 필기 제거·흑백 변환한 뒤 JPG로 저장하거나 A4에 배치합니다.</p>
+<h1 class="noprint">✏️ AI 필기 제거</h1>
+<p class="sub noprint">문제집 사진을 올려 필기를 지우고 깨끗한 흑백 이미지로 만든 뒤, A4에 배치해 인쇄하거나 저장합니다.</p>
 
 <section class="card noprint">
-  <h2>① 처리 설정</h2>
+  <h2>① 이미지 불러오기</h2>
+  <label class="drop" id="drop"><b>📷 문제집 사진 여러 장 선택 또는 끌어다 놓기</b>파일명 순서대로 정렬되어 추가됩니다
+    <input id="file" type="file" accept="image/*" multiple hidden></label>
+</section>
+
+<section class="card noprint">
+  <h2>② 필기 제거 <span id="cnt" style="font-weight:400"></span></h2>
+  <div class="bar">
+    <button id="runNew" class="p">일괄 처리<span class="pay" id="payNew" hidden></span></button>
+    <button id="zipAll">결과 JPG 저장 (ZIP)</button>
+    <button id="clr">모두 비우기</button>
+    <span id="prog"></span>
+  </div>
   <div class="ctl">
+    <b>처리 설정</b>
     <label><input type="checkbox" id="optColor" checked> 색 펜 필기 제거</label>
     <label>색 민감도 <input type="range" id="optSat" min="25" max="90" value="45"></label>
     <label>뒷면 비침·연필 제거 강도 <input type="range" id="optT" min="120" max="230" value="185"></label>
     <label title="클수록 인쇄 글자는 안전하지만 글자 근처 필기가 더 남을 수 있어요">인쇄 글자 보호 범위 <input type="range" id="optP" min="0.5" max="4" step="0.5" value="1"></label>
   </div>
+  <div class="grid" id="grid"></div>
 </section>
 
-<label class="drop noprint" id="drop"><b>📷 문제집 사진 여러 장 선택 또는 끌어다 놓기</b>파일명 순서대로 정렬되어 추가됩니다
-  <input id="file" type="file" accept="image/*" multiple hidden></label>
-
-<div class="bar noprint">
-  <button id="runNew" class="p">일괄 처리<span class="pay" id="payNew" hidden></span></button>
-  <button id="runAll">전체 다시 처리<span class="pay" id="payAll" hidden></span></button>
-  <button id="reMix" title="AI를 다시 부르지 않고 보호 설정만 다시 적용">보호 범위 다시 적용<span class="free">무료</span></button>
-  <button id="zipAll">결과 JPG 저장 (ZIP)</button>
-  <button id="clr">모두 비우기</button>
-  <span id="cnt">0장</span><span id="prog"></span>
-</div>
-<div class="grid noprint" id="grid"></div>
-
 <section class="card">
-  <h2 class="noprint">② A4 배치</h2>
-  <div class="ctl noprint">
+  <h2 class="noprint">③ 인쇄하기</h2>
+  <div class="ctl noprint" style="margin-top:0">
     <label>기본 가로 <input type="number" id="aW" value="9.5" step="0.5" min="3" max="20"> cm</label>
-    <label>여백 <input type="number" id="aM" value="5" min="0" max="30"> mm</label>
-    <label>간격 <input type="number" id="aG" value="4" min="0" max="30"> mm</label>
     <span id="aInfo"></span>
   </div>
-  <div class="row noprint" style="margin-top:12px">
+  <div class="row noprint">
+    <label class="btn">📂 필기 제거된 이미지 불러오기<input type="file" id="impFile" accept="image/*" multiple hidden></label>
+    <button id="impClr">불러온 이미지 비우기</button><span id="impInfo"></span>
+  </div>
+  <p class="hint noprint">②의 처리 결과와 여기서 불러온 이미지가 함께 A4에 자동 배치됩니다.</p>
+  <div class="row noprint">
     <button id="prn" class="p">🖨 인쇄하기</button>
     <button id="dlPages">💾 저장하기</button>
   </div>
-  <p class="hint noprint">일괄 처리가 끝나면 아래에 A4 미리보기가 자동으로 만들어지고, 설정을 바꾸면 바로 갱신됩니다. 이미지별 <b>가로(cm)</b> 칸에 값을 넣으면 그 이미지만 크기가 달라집니다.</p>
   <div class="pages" id="pages"></div>
 </section>
-
-<div class="note noprint">현재는 브라우저 안의 간이 처리(색 펜 제거 + 배경 보정 흑백)입니다. 연필·검정 필기까지 지우려면 코드의 <code>AI_ENDPOINT</code>에 AI 서버를 연결하세요(직접 호스팅한 페이지에서 동작).</div>
 </main>
 
 <dialog id="dlg">
@@ -105,27 +101,29 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
   <div class="row"><button id="cFull">전체 선택</button><button id="cCancel">취소</button><button id="cOk" class="p">적용</button></div>
 </dialog>
 
-<dialog id="zdlg">
-  <div class="row" style="margin-bottom:8px"><button id="zk" class="p">🛡 글자 보호(원본 유지)</button><button id="ze">🧽 필기 더 지우기</button></div>
-  <canvas id="zc"></canvas>
-  <p class="hint">결과 이미지에서 영역을 끌어 그립니다. 초록 = 글자가 깎인 곳(원본 그대로 유지), 주황 = 필기가 남은 곳(보호 해제).</p>
-  <div class="row"><button id="zUndo">마지막 취소</button><button id="zClr">전체 삭제</button><button id="zCancel">닫기</button><button id="zOk" class="p">적용<span class="free">무료 · AI 재호출 없음</span></button></div>
+<dialog id="edlg">
+  <div class="row" style="margin-bottom:8px">
+    <button id="eE" class="p">🧽 지우기</button><button id="eD">🖌 그리기</button>
+    <label style="font-size:14px">브러시 크기 <input type="range" id="eS" min="3" max="80" value="20" style="width:120px;vertical-align:middle"></label>
+  </div>
+  <canvas id="ec"></canvas>
+  <div class="row" style="margin-top:8px"><button id="eUndo">되돌리기</button><button id="eCancel">취소</button><button id="eOk" class="p">적용</button></div>
 </dialog>
 
 <script>
 const AI_ENDPOINT = '/api/erase';
 // 금액 표시용 설정: 사용하는 Gemini 모델의 장당 가격과 환율에 맞게 수정하세요.
-const COST_PER_IMAGE = 0.04;   // 장당 예상 요금 (USD)
-const KRW_PER_USD = 1400;      // 원화 환산 환율(대략값)
-const money = n => { const u = n*COST_PER_IMAGE; return `≈$${u.toFixed(2)} (약 ${Math.round(u*KRW_PER_USD).toLocaleString()}원)`; };   // ★ AI 서버 연결 지점 (PNG POST → 필기 제거된 이미지 응답)
+const COST_PER_IMAGE = 0.04, KRW_PER_USD = 1400;
+const money = n => { const u = n*COST_PER_IMAGE; return `≈$${u.toFixed(2)} (약 ${Math.round(u*KRW_PER_USD).toLocaleString()}원)`; };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $ = s => document.querySelector(s), sleep = ms => new Promise(r => setTimeout(r, ms));
 const loadImg = u => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = u; });
-let items = [], uid = 0, cur = null, scale = 1, crop = {x:0,y:0,w:0,h:0}, drag = null, busy = false, pageBlobs = [];
+const byName = (a,b) => a.name.localeCompare(b.name, undefined, {numeric:true});
+let items = [], imps = [], uid = 0, cur = null, scale = 1, crop = {x:0,y:0,w:0,h:0}, drag = null, busy = false, pageBlobs = [];
 const cv = $('#cv'), cx = cv.getContext('2d');
 const opts = () => ({color:$('#optColor').checked, sat:+$('#optSat').value, T:+$('#optT').value, prot:+$('#optP').value});
 
-// ---------- 저장 (미리보기에서는 downloads 기능, 직접 호스팅 시 일반 다운로드) ----------
+// ---------- 저장 ----------
 async function save(data, filename){
   try{
     const d = window.claude && claude.use ? await claude.use('downloads') : null;
@@ -141,56 +139,52 @@ async function saveZip(files, zname){
   save(await z.generateAsync({type:'blob'}), zname);
 }
 
-// ---------- 업로드·목록 ----------
+// ---------- ① 이미지 불러오기 ----------
 const drop = $('#drop'), file = $('#file');
 file.onchange = () => { addFiles(file.files); file.value = ''; };
 ['dragover','dragenter'].forEach(e => drop.addEventListener(e, ev => {ev.preventDefault(); drop.classList.add('hot');}));
 ['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => {ev.preventDefault(); drop.classList.remove('hot');}));
 drop.addEventListener('drop', ev => addFiles(ev.dataTransfer.files));
 async function addFiles(fl){
-  const fs = [...fl].filter(f => f.type.startsWith('image/')).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+  const fs = [...fl].filter(f => f.type.startsWith('image/')).sort(byName);
   for(const f of fs){
     const url = URL.createObjectURL(f);
-    try{ items.push({id:++uid, name:f.name.replace(/\.[^.]+$/,'').replace(/[<>&"']/g,''), img:await loadImg(url), url, crop:{x:0,y:0,w:1,h:1}, status:'대기', wcm:null}); }catch(e){}
+    try{ items.push({id:++uid, name:f.name.replace(/\.[^.]+$/,'').replace(/[<>&"']/g,''), img:await loadImg(url), url, crop:{x:0,y:0,w:1,h:1}, status:'대기'}); }catch(e){}
   }
   render();
 }
+
+// ---------- ② 목록 ----------
 function render(){
   $('#grid').innerHTML = items.map(it => `<div class="it" data-id="${it.id}">
     <div class="th" data-a="tog" title="클릭: 원본/결과 전환"><img src="${it.rurl && !it.orig ? it.rurl : it.url}"><span class="st ${it.status==='완료'?'ok':''}">${it.status}</span></div>
     <div class="nm" title="${it.name}">${it.name}</div>
     ${it.err ? `<div style="font-size:12px;color:#dc2626;word-break:break-all">${esc(it.err)}</div>` : ''}
-    <label class="r">가로 <input type="number" step="0.5" min="2" data-w value="${it.wcm ?? ''}" placeholder="기본" style="width:62px"> cm</label>
-    <div class="r"><button data-a="crop">✂ 자르기</button><button data-a="redo">↻ 처리${AI_ENDPOINT ? `<span class="pay">$${COST_PER_IMAGE.toFixed(2)}</span>` : ''}</button><button data-a="zone" ${it.aiBlob ? '' : 'disabled'}>🛡 보호${it.zones && it.zones.length ? ' ' + it.zones.length : ''}</button></div>
-    <div class="r"><button data-a="dl" ${it.blob?'':'disabled'}>JPG</button><button data-a="l">◀</button><button data-a="rr">▶</button><button data-a="del">✕</button></div></div>`).join('');
-  $('#cnt').textContent = items.length + '장'; scheduleBuild(); updatePay();
+    <div class="r"><button data-a="crop">✂ 자르기</button><button data-a="edit" ${it.blob ? '' : 'disabled'}>🖌 수정</button></div>
+    <div class="r"><button data-a="dl" ${it.blob ? '' : 'disabled'}>JPG</button><button data-a="del">✕ 삭제</button></div></div>`).join('');
+  $('#cnt').textContent = items.length ? `(${items.length}장)` : '';
+  scheduleBuild(); updatePay();
 }
 function updatePay(){
-  const on = !!AI_ENDPOINT;
-  [['#payNew', items.filter(i => i.status !== '완료').length], ['#payAll', items.length]].forEach(([id, n]) => {
-    const e = $(id); e.hidden = !on || !n; e.textContent = `${n}장 ${money(n)}`;
-  });
+  const n = items.filter(i => i.status !== '완료').length, e = $('#payNew');
+  e.hidden = !AI_ENDPOINT || !n; e.textContent = `${n}장 ${money(n)}`;
 }
-$('#grid').addEventListener('click', async e => {
+$('#grid').addEventListener('click', e => {
   const b = e.target.closest('[data-a]'); if(!b) return;
   const id = +b.closest('.it').dataset.id, i = items.findIndex(x => x.id === id), it = items[i], a = b.dataset.a;
   if(a === 'tog'){ it.orig = !it.orig; render(); }
   else if(a === 'crop') openCrop(it);
-  else if(a === 'zone') openZone(it);
-  else if(a === 'redo'){ if(busy) return; busy = true; await proc(it); busy = false; scheduleBuild(); }
+  else if(a === 'edit') openEdit(it);
   else if(a === 'dl') save(it.blob, it.name + '_clean.jpg');
   else if(a === 'del'){ items.splice(i,1); render(); }
-  else if(a === 'l' && i > 0){ [items[i-1], items[i]] = [items[i], items[i-1]]; render(); }
-  else if(a === 'rr' && i < items.length-1){ [items[i+1], items[i]] = [items[i], items[i+1]]; render(); }
-});
-$('#grid').addEventListener('change', e => {
-  if(!e.target.matches('[data-w]')) return;
-  const it = items.find(x => x.id === +e.target.closest('.it').dataset.id), v = parseFloat(e.target.value);
-  it.wcm = v > 0 ? v : null; scheduleBuild();
 });
 $('#clr').onclick = () => { if(items.length && confirm('목록을 모두 비울까요?')){ items = []; render(); } };
+$('#zipAll').onclick = () => {
+  const f = items.filter(i => i.blob).map((it,k) => ({name:`${String(k+1).padStart(2,'0')}_${it.name}_clean.jpg`, blob:it.blob}));
+  f.length ? saveZip(f, 'cleaned_jpg.zip') : alert('먼저 일괄 처리를 해 주세요.');
+};
 
-// ---------- 장별 크롭 ----------
+// ---------- 자르기 ----------
 function openCrop(it){
   cur = it; const W = it.img.naturalWidth, H = it.img.naturalHeight;
   scale = Math.min((Math.min(innerWidth, 1000) - 70) / W, innerHeight * .62 / H, 1);
@@ -228,50 +222,43 @@ $('#cCancel').onclick = () => $('#dlg').close();
 $('#cOk').onclick = () => {
   cur.crop = {x:crop.x/cv.width, y:crop.y/cv.height, w:crop.w/cv.width, h:crop.h/cv.height};
   if(cur.blob) cur.status = '재처리 필요';
-  cur.aiBlob = null; cur.zones = [];
   $('#dlg').close(); render();
 };
 
-// ---------- 보호 영역 선택 ----------
-let zit = null, zs = [], zmode = 'k', zi = null, zd = null;
-const zc = $('#zc'), zx = zc.getContext('2d');
-async function openZone(it){
-  zit = it; zs = (it.zones || []).map(z => ({...z})); zi = await loadImg(it.rurl);
-  const k = Math.min((Math.min(innerWidth, 1000) - 70) / zi.naturalWidth, innerHeight * .6 / zi.naturalHeight, 1);
-  zc.width = Math.round(zi.naturalWidth*k); zc.height = Math.round(zi.naturalHeight*k);
-  $('#zdlg').showModal(); zdraw();
+// ---------- 수정 (지우기 / 그리기) ----------
+const ec = $('#ec'), ex = ec.getContext('2d');
+let eit = null, emode = 'e', elast = null, ehist = [];
+async function openEdit(it){
+  eit = it; const im = await loadImg(it.rurl);
+  ec.width = im.naturalWidth; ec.height = im.naturalHeight; ex.drawImage(im, 0, 0); ehist = [];
+  $('#edlg').showModal();
 }
-function zdraw(){
-  zx.drawImage(zi, 0, 0, zc.width, zc.height);
-  [...zs, ...(zd ? [zd] : [])].forEach(z => {
-    const c = z.m === 'k' ? '22,163,74' : '249,115,22';
-    zx.fillStyle = `rgba(${c},.25)`; zx.strokeStyle = `rgb(${c})`; zx.lineWidth = 2;
-    zx.fillRect(z.x*zc.width, z.y*zc.height, z.w*zc.width, z.h*zc.height);
-    zx.strokeRect(z.x*zc.width, z.y*zc.height, z.w*zc.width, z.h*zc.height);
-  });
+function epos(e){ const r = ec.getBoundingClientRect(); return {x:(e.clientX-r.left)*ec.width/r.width, y:(e.clientY-r.top)*ec.height/r.height}; }
+function estroke(a, b){
+  ex.strokeStyle = emode === 'e' ? '#fff' : '#000';
+  ex.lineWidth = +$('#eS').value * ec.width / ec.getBoundingClientRect().width;   // 화면에서 보이는 굵기 기준
+  ex.lineCap = ex.lineJoin = 'round'; ex.beginPath(); ex.moveTo(a.x, a.y); ex.lineTo(b.x, b.y); ex.stroke();
 }
-function zpos(e){ const r = zc.getBoundingClientRect(); return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)), y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}; }
-zc.addEventListener('pointerdown', e => { zc.setPointerCapture(e.pointerId); const p = zpos(e); zd = {sx:p.x, sy:p.y, x:p.x, y:p.y, w:0, h:0, m:zmode}; });
-zc.addEventListener('pointermove', e => {
-  if(!zd) return; const p = zpos(e);
-  zd.x = Math.min(p.x, zd.sx); zd.y = Math.min(p.y, zd.sy); zd.w = Math.abs(p.x-zd.sx); zd.h = Math.abs(p.y-zd.sy); zdraw();
+ec.addEventListener('pointerdown', e => {
+  ec.setPointerCapture(e.pointerId);
+  ehist.push(ex.getImageData(0,0,ec.width,ec.height)); if(ehist.length > 6) ehist.shift();
+  elast = epos(e); estroke(elast, elast);
 });
-['pointerup','pointercancel'].forEach(t => zc.addEventListener(t, () => {
-  if(zd && zd.w*zc.width > 8 && zd.h*zc.height > 8) zs.push({x:zd.x, y:zd.y, w:zd.w, h:zd.h, m:zd.m});
-  zd = null; if(zi) zdraw();
-}));
-function zsetMode(m){ zmode = m; $('#zk').classList.toggle('p', m === 'k'); $('#ze').classList.toggle('p', m === 'e'); }
-$('#zk').onclick = () => zsetMode('k'); $('#ze').onclick = () => zsetMode('e');
-$('#zUndo').onclick = () => { zs.pop(); zdraw(); };
-$('#zClr').onclick = () => { zs = []; zdraw(); };
-$('#zCancel').onclick = () => $('#zdlg').close();
-$('#zOk').onclick = async () => {
-  zit.zones = zs; $('#zdlg').close(); render();
-  if(!busy){ busy = true; await proc(zit, true); busy = false; }
+ec.addEventListener('pointermove', e => { if(!elast) return; const p = epos(e); estroke(elast, p); elast = p; });
+['pointerup','pointercancel'].forEach(t => ec.addEventListener(t, () => elast = null));
+function eMode(m){ emode = m; $('#eE').classList.toggle('p', m === 'e'); $('#eD').classList.toggle('p', m === 'd'); }
+$('#eE').onclick = () => eMode('e'); $('#eD').onclick = () => eMode('d');
+$('#eUndo').onclick = () => { const h = ehist.pop(); if(h) ex.putImageData(h, 0, 0); };
+$('#eCancel').onclick = () => $('#edlg').close();
+$('#eOk').onclick = async () => {
+  const blob = await new Promise(r => ec.toBlob(r, 'image/jpeg', .92));
+  if(eit.rurl) URL.revokeObjectURL(eit.rurl);
+  Object.assign(eit, {blob, rurl:URL.createObjectURL(blob), rimg:null, orig:false});
+  $('#edlg').close(); render();
 };
 
 // ---------- 일괄 처리 ----------
-async function proc(it, reuse){
+async function proc(it){
   it.status = '처리 중…'; render(); await sleep(30);
   try{
     const im = it.img, W = im.naturalWidth, H = im.naturalHeight, c = it.crop;
@@ -279,10 +266,7 @@ async function proc(it, reuse){
     const cn = document.createElement('canvas'); cn.width = Math.round(sw*k); cn.height = Math.round(sh*k);
     cn.getContext('2d').drawImage(im, c.x*W, c.y*H, sw, sh, 0, 0, cn.width, cn.height);
     let src = cn, warn = '';
-    if(AI_ENDPOINT){
-      if(!(reuse && it.aiBlob)) it.aiBlob = await callAI(cn);
-      const h = hybrid(cn, await blobToCanvas(it.aiBlob), opts(), it.zones || []); src = h.out; warn = h.warn || '';
-    }
+    if(AI_ENDPOINT){ const h2 = hybrid(cn, await blobToCanvas(await callAI(cn)), opts()); src = h2.out; warn = h2.warn || ''; }
     const out = clean(src, opts());
     const blob = await new Promise(r => out.toBlob(r, 'image/jpeg', .92));
     if(it.rurl) URL.revokeObjectURL(it.rurl);
@@ -290,19 +274,12 @@ async function proc(it, reuse){
   }catch(e){ it.status = '오류'; it.err = String(e.message || e).slice(0,240); }
   render();
 }
-async function runAll(force, reuse){
+$('#runNew').onclick = async () => {
   if(busy) return;
-  const todo = items.filter(i => force || i.status !== '완료'); if(!todo.length) return;
+  const todo = items.filter(i => i.status !== '완료'); if(!todo.length) return;
   busy = true;
-  for(let k = 0; k < todo.length; k++){ $('#prog').textContent = `${k+1} / ${todo.length} 처리 중…`; await proc(todo[k], reuse); }
+  for(let k = 0; k < todo.length; k++){ $('#prog').textContent = `${k+1} / ${todo.length} 처리 중…`; await proc(todo[k]); }
   busy = false; $('#prog').textContent = '처리 완료'; scheduleBuild();
-}
-$('#runNew').onclick = () => runAll(false);
-$('#runAll').onclick = () => runAll(true);
-$('#reMix').onclick = () => runAll(true, true);
-$('#zipAll').onclick = () => {
-  const f = items.filter(i => i.blob).map((it,k) => ({name:`${String(k+1).padStart(2,'0')}_${it.name}_clean.jpg`, blob:it.blob}));
-  f.length ? saveZip(f, 'cleaned_jpg.zip') : alert('먼저 일괄 처리를 해 주세요.');
 };
 async function callAI(c){
   const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .9));
@@ -328,8 +305,7 @@ function boxf(a,w,h,r){
   for(let y=0;y<h;y++) for(let x=0;x<w;x++){ let s=0,n=0; for(let j=Math.max(0,y-r);j<=Math.min(h-1,y+r);j++){s+=t[j*w+x];n++;} o[y*w+x]=s/n; }
   return o;
 }
-// 배경 보정 밝기(종이≈255)와 종이 밝기 지도
-function flat(src){
+function flat(src){   // 배경 보정 밝기(종이≈255)와 종이 밝기 지도
   const W = src.width, H = src.height, n = W*H, p = src.getContext('2d').getImageData(0,0,W,H).data;
   const g = new Float32Array(n);
   for(let i=0,j=0;i<n;i++,j+=4) g[i] = .299*p[j] + .587*p[j+1] + .114*p[j+2];
@@ -340,23 +316,17 @@ function flat(src){
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const i=y*W+x; v[i] = Math.min(255, g[i]/Math.max(bg[((y/s)|0)*bw+((x/s)|0)],40)*255); }
   return {v, bg, bw, s};
 }
-// 인쇄 글자 보호: AI 결과에서 "글자가 남아 있는 자리(주변 포함)"는 원본 그대로 두고,
-// 원본에는 있지만 AI 결과에서 사라진 자국(=필기)만 종이색으로 지운다.
-function hybrid(orig, ai, o, zones){
+// 인쇄 글자 보호: AI 결과에도 글자가 남아 있는 자리(주변 포함)는 원본 그대로 두고, 사라진 자국(필기)만 종이색으로 지움
+function hybrid(orig, ai, o){
   const W = orig.width, H = orig.height, n = W*H;
   if(Math.abs(ai.width/ai.height - W/H)/(W/H) > .03) return {out:ai, warn:'AI 결과 비율이 달라 원본 보호를 하지 못했어요(AI 결과 그대로 사용)'};
   const a = document.createElement('canvas'); a.width = W; a.height = H; a.getContext('2d').drawImage(ai,0,0,W,H);
   const fo = flat(orig), fa = flat(a), r = Math.max(2, Math.round(W/300*o.prot));
   const dk = new Float32Array(n); for(let i=0;i<n;i++) dk[i] = fa.v[i] < 215 ? 1 : 0;
-  const pr = maxf(dk,W,H,r), pe = zones.some(z => z.m === 'e') ? maxf(dk,W,H,1) : null, zm = new Uint8Array(n);
-  zones.forEach(z => {   // 선택 영역: k=원본 유지, e=보호 해제
-    const x0 = Math.max(0, Math.floor(z.x*W)), x1 = Math.min(W, Math.ceil((z.x+z.w)*W)), y0 = Math.max(0, Math.floor(z.y*H)), y1 = Math.min(H, Math.ceil((z.y+z.h)*H));
-    for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) zm[y*W+x] = z.m === 'k' ? 1 : 2;
-  });
-  const d = orig.getContext('2d').getImageData(0,0,W,H), p = d.data; let ink = 0, gone = 0;
+  const pr = maxf(dk,W,H,r), d = orig.getContext('2d').getImageData(0,0,W,H), p = d.data; let ink = 0, gone = 0;
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){
     const i = y*W+x;
-    if(fo.v[i] < 225){ ink++; const pv = zm[i] === 1 ? 1 : zm[i] === 2 ? pe[i] : pr[i]; if(!pv){ gone++; const f = fo.bg[((y/fo.s)|0)*fo.bw+((x/fo.s)|0)], j = i*4; p[j]=p[j+1]=p[j+2]=f; } }
+    if(fo.v[i] < 225){ ink++; if(!pr[i]){ gone++; const f = fo.bg[((y/fo.s)|0)*fo.bw+((x/fo.s)|0)], j = i*4; p[j]=p[j+1]=p[j+2]=f; } }
   }
   if(ink && gone/ink > .75) return {out:ai, warn:'위치가 맞지 않아 AI 결과를 그대로 사용했어요'};
   const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').putImageData(d,0,0);
@@ -384,12 +354,22 @@ function clean(src, o){
   const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').putImageData(d,0,0); return c;
 }
 
-// ---------- A4 배치 ----------
-const PW = 210, PH = 297;
-function cfg(){ const w = (+$('#aW').value||10)*10, m = +$('#aM').value||0, g = +$('#aG').value||0, uw = PW-2*m;
-  return {w, m, g, uw, uh:PH-2*m, cols:Math.max(1, Math.floor((uw+g)/(Math.min(w,uw)+g)))}; }
-function info(){ const c = cfg(); $('#aInfo').textContent = `한 줄 ${c.cols}열 배치`; }
-['aW','aM','aG'].forEach(id => $('#'+id).addEventListener('input', () => { info(); scheduleBuild(); })); info();
+// ---------- ③ A4 배치 ----------
+const PW = 210, PH = 297, MG = 5, GP = 4;   // A4(mm), 여백, 간격
+function cfg(){ const uw = PW-2*MG, w = Math.min((+$('#aW').value||9.5)*10, uw); return {w, uh:PH-2*MG, cols:Math.max(1, Math.floor((uw+GP)/(w+GP)))}; }
+function info(){ $('#aInfo').textContent = `한 줄 ${cfg().cols}열 배치`; }
+$('#aW').addEventListener('input', () => { info(); scheduleBuild(); }); info();
+$('#impFile').onchange = async e => {
+  const fs = [...e.target.files].filter(f => f.type.startsWith('image/')).sort(byName);
+  for(const f of fs){
+    const url = URL.createObjectURL(f);
+    try{ const im = await loadImg(url); imps.push({name:f.name, rurl:url, rimg:im, rw:im.naturalWidth, rh:im.naturalHeight}); }catch(err){}
+  }
+  e.target.value = ''; impInfo(); scheduleBuild();
+};
+$('#impClr').onclick = () => { imps = []; impInfo(); scheduleBuild(); };
+function impInfo(){ $('#impInfo').textContent = imps.length ? `불러온 이미지 ${imps.length}장` : ''; }
+
 let bt = null, building = false, again = false;
 function scheduleBuild(){ clearTimeout(bt); bt = setTimeout(build, 400); }
 async function build(){
@@ -398,22 +378,15 @@ async function build(){
 }
 async function ensure(){ clearTimeout(bt); while(building) await sleep(60); building = true; try{ await doBuild(); } finally{ building = false; } }
 async function doBuild(){
-  const done = items.filter(i => i.blob);
-  if(!done.length){ $('#pages').innerHTML = ''; pageBlobs = []; return; }
-  const {w:defW, m, g, uw, uh, cols} = cfg(), colW = Math.min(defW, uw), tw = cols*colW+(cols-1)*g, x0 = (PW-tw)/2;
-  const pages = [[]]; let bot = Array(cols).fill(m);
-  const next = () => { pages.push([]); bot = Array(cols).fill(m); };
-  for(const it of done){
-    let w = Math.min(it.wcm ? it.wcm*10 : defW, uw), h = w*it.rh/it.rw;
-    if(h > uh){ h = uh; w = h*it.rw/it.rh; }
-    if(w > colW + .01){                       // 예외 크기: 한 줄 전체 사용
-      let y = Math.max(...bot); if(y+h > PH-m){ next(); y = m; }
-      pages.at(-1).push({it, x:(PW-w)/2, y, w, h}); bot = bot.map(() => y+h+g);
-    } else {                                  // 일반: 가장 낮은 열에 배치
-      let c = bot.indexOf(Math.min(...bot)), y = bot[c];
-      if(y+h > PH-m){ next(); c = 0; y = m; }
-      pages.at(-1).push({it, x:x0+c*(colW+g), y, w, h}); bot[c] = y+h+g;
-    }
+  const list = [...items.filter(i => i.blob), ...imps];
+  if(!list.length){ $('#pages').innerHTML = ''; pageBlobs = []; return; }
+  const {w:colW, uh, cols} = cfg(), x0 = (PW-(cols*colW+(cols-1)*GP))/2;
+  const pages = [[]]; let bot = Array(cols).fill(MG);
+  for(const it of list){
+    let w = colW, h = w*it.rh/it.rw; if(h > uh){ h = uh; w = h*it.rw/it.rh; }
+    let c = bot.indexOf(Math.min(...bot)), y = bot[c];
+    if(y+h > PH-MG){ pages.push([]); bot = Array(cols).fill(MG); c = 0; y = MG; }
+    pages.at(-1).push({it, x:x0+c*(colW+GP), y, w, h}); bot[c] = y+h+GP;
   }
   const K = 150/25.4, box = $('#pages'); box.innerHTML = ''; pageBlobs = [];
   for(const pg of pages){
@@ -424,13 +397,13 @@ async function doBuild(){
     c.className = 'pg'; box.appendChild(c);
   }
   info(); $('#aInfo').textContent += ` · 총 ${pages.length}페이지`;
-};
+}
 $('#dlPages').onclick = async () => {
-  await ensure(); if(!pageBlobs.length) return alert('먼저 일괄 처리를 해 주세요.');
+  await ensure(); if(!pageBlobs.length) return alert('배치할 이미지가 없어요.');
   saveZip(pageBlobs.map((b,k) => ({name:`A4_${k+1}.jpg`, blob:b})), 'A4_pages.zip');
 };
 $('#prn').onclick = async () => {
-  await ensure(); if(!pageBlobs.length) return alert('먼저 일괄 처리를 해 주세요.');
+  await ensure(); if(!pageBlobs.length) return alert('배치할 이미지가 없어요.');
   try{ window.print(); }catch(e){ alert('이 화면에서는 인쇄가 막혀 있어요. 저장하기로 JPG를 받아 인쇄해 주세요.'); }
 };
 </script>
